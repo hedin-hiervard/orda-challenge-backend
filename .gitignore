@@ -9,7 +9,6 @@ settings/*
 deploy.sh
 .DS_Store
 *.log
-.env
 *~
 
 *.sublime-workspace
