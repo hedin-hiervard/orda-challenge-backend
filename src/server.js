@@ -4,6 +4,7 @@ import express from 'express'
 import { makeExecutableSchema } from 'graphql-tools'
 import _ from 'lodash'
 import moment from 'moment'
+import cors from 'cors'
 
 const typeDefs = `
     type Venue {
@@ -43,10 +44,11 @@ const typeDefs = `
     }
 `
 export default class Server {
-    constructor({ port, log, dataFile }) {
+    constructor({ port, log, dataFile, frontendURI }) {
         this.port = port
         this.log = log
         this.dataFile = dataFile
+        this.frontendURI = frontendURI
     }
 
     async start() {
@@ -111,6 +113,9 @@ export default class Server {
 
         this.app = express()
         this.app.use('/',
+            cors({
+                origin: this.frontendURI,
+            }),
             graphqlHTTP((req, res) => ({
                 schema,
                 graphiql: true,

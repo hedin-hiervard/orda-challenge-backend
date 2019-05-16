@@ -30,10 +30,14 @@ process.on('uncaughtException', err => {
     if(process.env.DATA_FILE == null) {
         throw new Error('DATA_FILE env var is undefined')
     }
+    if(process.env.FRONTEND_URI == null) {
+        throw new Error('FRONTEND_URI env var is undefined')
+    }
     const server = new Server({
         port: process.env.BACKEND_PORT,
         log,
         dataFile: process.env.DATA_FILE,
+        frontendURI: process.env.FRONTEND_URI,
     })
     await server.start()
 })()
