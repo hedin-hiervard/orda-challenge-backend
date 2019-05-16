@@ -5,6 +5,7 @@ import { makeExecutableSchema } from 'graphql-tools'
 import _ from 'lodash'
 import moment from 'moment'
 import cors from 'cors'
+import nodemailer from 'nodemailer'
 
 const typeDefs = `
     type Venue {
@@ -26,19 +27,18 @@ const typeDefs = `
     }
 
     type Day {
-        start: String!
-        desc: String!
+        startTimestamp: String!
     }
 
     type Query {
         days: [ Day ]
-        venueNames: [ Venue ]
+        venues: [ Venue ]
         orders(venueId: String): [ Order ]
     }
     type Mutation {
         sendReport(
             email: String!
-            dayStart: String!
+            dayStartTimestamp: String!
             venueId: String!
         ): Result!
     }
@@ -60,12 +60,62 @@ export default class Server {
         }
         this.log.info(`successfully read ${this.data.length} entries from data file`)
 
+        this.log.info(`creating mail transport`)
+        const testAccount = await nodemailer.createTestAccount()
+
+        this.transporter = nodemailer.createTransport({
+            host: 'smtp.ethereal.email',
+            port: 587,
+            secure: false,
+            auth: {
+                user: testAccount.user,
+                pass: testAccount.pass,
+            },
+        })
+
         const resolvers = {
             Mutation: {
-                sendReport: (obj, args) => {
+                sendReport: async (obj, args) => {
+                    this.log.debug(args)
+                    const dayStart = moment.unix(args.dayStartTimestamp)
+                    const dayEnd = dayStart.clone().endOf('day')
+                    const email = args.email
+                    this.log.debug(dayStart.format())
+                    this.log.debug(dayEnd.format())
+                    const subject = `Report For ${dayStart.format('MMMM Do YYYY')}`
+                    const result = this.data
+                        .filter(order => {
+                            const om = moment.unix(order.time)
+                            return om.isAfter(dayStart) && om.isBefore(dayEnd)
+                        })
+                        .reduce((acc, next) => ({
+                            ordersCount: acc.ordersCount + 1,
+                            totalTurnover: acc.totalTurnover + next.sumTotal,
+                            totalTips: acc.totalTips + next.tipSum,
+                        }),
+                        {
+                            ordersCount: 0,
+                            totalTurnover: 0,
+                            totalTips: 0,
+                        })
+                    this.log.debug(result)
+                    const text = `Orders: ${result.ordersCount}\nTotal Turnover: ${result.totalTurnover}\nTotal Tips: ${result.totalTips}`
+                    const info = await this.transporter.sendMail({
+                        from: 'Reporting <reporting_bot@example.com>', // sender address
+                        to: args.email,
+                        subject,
+                        text,
+                    })
+                    const url = nodemailer.getTestMessageUrl(info)
+                    if(!url) {
+                        return {
+                            success: false,
+                            msg: 'Failed to send report',
+                        }
+                    }
                     return {
                         success: true,
-                        msg: 'no msg',
+                        msg: url,
                     }
                 },
             },
@@ -75,12 +125,12 @@ export default class Server {
                         .map(order => moment.unix(order.time).startOf('day'))
                     days = days
                         .map(m => ({
-                            start: m.valueOf(),
-                            desc: m.format(),
+                            startTimestamp: m.unix(),
                         }))
+                    days = _.uniqBy(days, day => day.startTimestamp)
                     return days
                 },
-                venueNames: () => {
+                venues: () => {
                     let result = this.data
                     result = _.uniqBy(result, order => order.venueId)
                     result = result
