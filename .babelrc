@@ -1,9 +1,11 @@
 {
-  "presets": [ "env" ],
+  "presets": ["@babel/preset-env"],
   "plugins": [
-  	  "transform-object-rest-spread",
-  	  "transform-runtime",
-	  ["module-resolver",
+  	 ["@babel/plugin-proposal-object-rest-spread", {
+  	 	"loose": true,
+  	 "useBuiltIns": true
+  	}],
+	 ["module-resolver",
 				{
 					"root":
 						[
